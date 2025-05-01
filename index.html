@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مترجم المستندات</title>
+    <!-- شيت PDF.js لقراءة ملفات PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <!-- مكتبة Mammoth.js لقراءة ملفات DOCX -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.5.0/mammoth.browser.min.js"></script>
+    <script>
+        // تعيين مسار العامل لمكتبة PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    </script>
+    <style>
+        :root {
+            --primary-color: #4285f4;
+            --secondary-color: #34a853;
+            --accent-color: #fbbc05;
+            --error-color: #ea4335;
+            --white: #ffffff;
+            --light-gray: #f5f5f5;
+            --dark-gray: #333333;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--light-gray);
+            color: var(--dark-gray);
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--white);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .file-upload {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            border: 2px dashed var(--primary-color);
+            border-radius: 10px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .file-upload:hover {
+            border-color: var(--secondary-color);
+            background-color: rgba(66, 133, 244, 0.05);
+        }
+
+        .file-upload-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .file-upload-icon {
+            font-size: 40px;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+
+        #file-upload {
+            display: none;
+        }
+
+        .file-info {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .language-selectors {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .language-select {
+            flex: 1;
+            margin: 0 10px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--dark-gray);
+        }
+
+        select, button {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        select:focus {
+            border-color: var(--primary-color);
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: var(--white);
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #3367d6;
+        }
+
+        button:disabled {
+            background-color: #b8b8b8;
+            cursor: not-allowed;
+        }
+
+        .result-container {
+            margin-top: 30px;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+            display: none;
+        }
+
+        .result-text {
+            background-color: var(--light-gray);
+            padding: 20px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+        }
+
+        .spinner {
+            display: none;
+            width: 40px;
+            height: 40px;
+            margin: 20px auto;
+            border: 4px solid rgba(66, 133, 244, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid var(--primary-color);
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            color: var(--error-color);
+            text-align: center;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 10px;
+            background-color: #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0;
+            background-color: var(--primary-color);
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>مترجم المستندات</h1>
+        
+        <!-- منطقة رفع الملف -->
+        <div class="file-upload" id="drop-area">
+            <label for="file-upload" class="file-upload-label">
+                <div class="file-upload-icon">📄</div>
+                <span>اضغط هنا لاختيار ملف أو اسحب الملف وأفلته هنا</span>
+                <input type="file" id="file-upload" accept=".pdf,.docx,.txt">
+            </label>
+            <div class="file-info" id="file-info">لم يتم اختيار ملف</div>
+        </div>
+
+        <!-- محددات اللغة -->
+        <div class="language-selectors">
+            <div class="language-select">
+                <div class="input-group">
+                    <label for="source-language">اللغة الأصلية</label>
+                    <select id="source-language">
+                        <option value="en">الإنجليزية</option>
+                        <option value="ar" selected>العربية</option>
+                        <option value="fr">الفرنسية</option>
+                        <option value="es">الإسبانية</option>
+                        <option value="de">الألمانية</option>
+                        <option value="it">الإيطالية</option>
+                        <option value="ru">الروسية</option>
+                        <option value="zh">الصينية</option>
+                        <option value="ja">اليابانية</option>
+                        <option value="ko">الكورية</option>
+                        <option value="pt">البرتغالية</option>
+                        <option value="tr">التركية</option>
+                        <option value="nl">الهولندية</option>
+                        <option value="sv">السويدية</option>
+                        <option value="hi">الهندية</option>
+                    </select>
+                </div>
+            </div>
+            <div class="language-select">
+                <div class="input-group">
+                    <label for="target-language">اللغة المستهدفة</label>
+                    <select id="target-language">
+                        <option value="en" selected>الإنجليزية</option>
+                        <option value="ar">العربية</option>
+                        <option value="fr">الفرنسية</option>
+                        <option value="es">الإسبانية</option>
+                        <option value="de">الألمانية</option>
+                        <option value="it">الإيطالية</option>
+                        <option value="ru">الروسية</option>
+                        <option value="zh">الصينية</option>
+                        <option value="ja">اليابانية</option>
+                        <option value="ko">الكورية</option>
+                        <option value="pt">البرتغالية</option>
+                        <option value="tr">التركية</option>
+                        <option value="nl">الهولندية</option>
+                        <option value="sv">السويدية</option>
+                        <option value="hi">الهندية</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- زر الترجمة -->
+        <button id="translate-btn" disabled>ترجمة المستند</button>
+        
+        <!-- شريط التقدم -->
+        <div class="progress-bar-container" id="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        
+        <!-- دائرة التحميل -->
+        <div class="spinner" id="spinner"></div>
+        
+        <!-- رسالة الخطأ -->
+        <div class="error-message" id="error-message"></div>
+        
+        <!-- نتيجة الترجمة -->
+        <div class="result-container" id="result-container">
+            <h2>النص المترجم</h2>
+            <div class="result-text" id="result-text"></div>
+            <button id="download-btn">تحميل النص المترجم</button>
+        </div>
+    </div>
+
+    <script>
+        // مفتاح API لـ Google Gemini API
+        const GEMINI_API_KEY = 'AIzaSyD0oNrn38aRwdMZ35oOpnF9h7seuj--8co';
+        // الحد الأقصى لحجم الملف بالبايت (10 ميجابايت)
+        const MAX_FILE_SIZE = 10 * 1024 * 1024;
+        
+        // متغيرات لتخزين حالة التطبيق
+        let extractedText = '';
+        let translatedText = '';
+        let fileName = '';
+        let fileExtension = '';
+        
+        // العناصر المهمة في الصفحة
+        const fileUpload = document.getElementById('file-upload');
+        const fileInfo = document.getElementById('file-info');
+        const dropArea = document.getElementById('drop-area');
+        const translateBtn = document.getElementById('translate-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const resultContainer = document.getElementById('result-container');
+        const resultText = document.getElementById('result-text');
+        const sourceLanguage = document.getElementById('source-language');
+        const targetLanguage = document.getElementById('target-language');
+        const spinner = document.getElementById('spinner');
+        const errorMessage = document.getElementById('error-message');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        
+        // إضافة مستمعي الأحداث
+        fileUpload.addEventListener('change', handleFileUpload);
+        translateBtn.addEventListener('click', translateDocument);
+        downloadBtn.addEventListener('click', downloadTranslatedText);
+        
+        // إضافة مستمعي الأحداث للسحب والإفلات
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropArea.style.borderColor = 'var(--secondary-color)';
+            dropArea.style.backgroundColor = 'rgba(66, 133, 244, 0.1)';
+        });
+        
+        dropArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropArea.style.borderColor = 'var(--primary-color)';
+            dropArea.style.backgroundColor = '';
+        });
+        
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.style.borderColor = 'var(--primary-color)';
+            dropArea.style.backgroundColor = '';
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileUpload.files = files;
+                handleFileUpload();
+            }
+        });
+        
+        /**
+         * معالجة حدث رفع الملف
+         */
+        function handleFileUpload() {
+            // إعادة تعيين حالة التطبيق
+            extractedText = '';
+            translatedText = '';
+            resultContainer.style.display = 'none';
+            errorMessage.style.display = 'none';
+            
+            const file = fileUpload.files[0];
+            if (!file) return;
+            
+            // التحقق من حجم الملف
+            if (file.size > MAX_FILE_SIZE) {
+                showError('حجم الملف كبير جدًا. الحد الأقصى هو 10 ميجابايت.');
+                fileUpload.value = '';
+                fileInfo.textContent = 'لم يتم اختيار ملف';
+                translateBtn.disabled = true;
+                return;
+            }
+            
+            // تحديث معلومات الملف
+            fileName = file.name.split('.').slice(0, -1).join('.');
+            fileExtension = file.name.split('.').pop().toLowerCase();
+            fileInfo.textContent = `الملف: ${file.name} (${formatFileSize(file.size)})`;
+            translateBtn.disabled = false;
+        }
+        
+        /**
+         * تنسيق حجم الملف ليكون مقروءًا
+         */
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' بايت';
+            else if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' كيلوبايت';
+            else return (bytes / 1048576).toFixed(2) + ' ميجابايت';
+        }
+        
+        /**
+         * البدء في عملية ترجمة المستند
+         */
+        async function translateDocument() {
+            try {
+                const file = fileUpload.files[0];
+                if (!file) {
+                    showError('الرجاء اختيار ملف أولاً');
+                    return;
+                }
+                
+                // إظهار مؤشر التحميل
+                spinner.style.display = 'block';
+                translateBtn.disabled = true;
+                errorMessage.style.display = 'none';
+                
+                // استخراج النص من الملف
+                await extractTextFromFile(file);
+                
+                // التحقق من وجود نص مستخرج
+                if (!extractedText || extractedText.trim() === '') {
+                    showError('لم يتم العثور على نص في الملف المحدد');
+                    spinner.style.display = 'none';
+                    translateBtn.disabled = false;
+                    return;
+                }
+                
+                // ترجمة النص المستخرج
+                await translateText();
+                
+                // عرض النتيجة
+                resultContainer.style.display = 'block';
+                resultText.textContent = translatedText;
+                spinner.style.display = 'none';
+                translateBtn.disabled = false;
+                
+            } catch (error) {
+                console.error('خطأ في ترجمة المستند:', error);
+                showError('حدث خطأ أثناء معالجة المستند. الرجاء المحاولة مرة أخرى.');
+                spinner.style.display = 'none';
+                translateBtn.disabled = false;
+            }
+        }
+        
+        /**
+         * استخراج النص من الملف حسب نوعه
+         */
+        async function extractTextFromFile(file) {
+            try {
+                progressContainer.style.display = 'block';
+                progressBar.style.width = '20%';
+                
+                switch (fileExtension) {
+                    case 'pdf':
+                        extractedText = await extractTextFromPdf(file);
+                        break;
+                    case 'docx':
+                        extractedText = await extractTextFromDocx(file);
+                        break;
+                    case 'txt':
+                        extractedText = await extractTextFromTxt(file);
+                        break;
+                    default:
+                        throw new Error('نوع الملف غير مدعوم');
+                }
+                
+                progressBar.style.width = '50%';
+                console.log('تم استخراج النص بنجاح');
+                
+            } catch (error) {
+                console.error('خطأ في استخراج النص:', error);
+                throw error;
+            }
+        }
+        
+        /**
+         * استخراج النص من ملف PDF
+         */
+        async function extractTextFromPdf(file) {
+            try {
+                const arrayBuffer = await readFileAsArrayBuffer(file);
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                let text = '';
+                
+                // استخراج النص من كل صفحة
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    const pageText = content.items.map(item => item.str).join(' ');
+                    text += pageText + '\n\n';
+                    
+                    // تحديث شريط التقدم
+                    progressBar.style.width = `${20 + (30 * i / pdf.numPages)}%`;
+                }
+                
+                return text;
+                
+            } catch (error) {
+                console.error('خطأ في استخراج النص من PDF:', error);
+                throw error;
+            }
+        }
+        
+        /**
+         * استخراج النص من ملف DOCX
+         */
+        async function extractTextFromDocx(file) {
+            try {
+                const arrayBuffer = await readFileAsArrayBuffer(file);
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                return result.value;
+                
+            } catch (error) {
+                console.error('خطأ في استخراج النص من DOCX:', error);
+                throw error;
+            }
+        }
+        
+        /**
+         * استخراج النص من ملف TXT
+         */
+        async function extractTextFromTxt(file) {
+            try {
+                return await readFileAsText(file);
+                
+            } catch (error) {
+                console.error('خطأ في استخراج النص من TXT:', error);
+                throw error;
+            }
+        }
+        
+        /**
+         * قراءة الملف كـ ArrayBuffer
+         */
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        /**
+         * قراءة الملف كنص
+         */
+        function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsText(file);
+            });
+        }
+        
+        /**
+         * ترجمة النص باستخدام Google Gemini API
+         */
+        async function translateText() {
+            try {
+                // تحديث شريط التقدم
+                progressBar.style.width = '70%';
+                
+                // تقليص النص إذا كان طويلاً جدًا (يمكن تعديل هذا حسب حدود API)
+                const maxChars = 100000; // 100 ألف حرف كحد أقصى
+                const textToTranslate = extractedText.length > maxChars 
+                    ? extractedText.substring(0, maxChars) + '...'
+                    : extractedText;
+                
+                // إعداد طلب الترجمة
+                const source = sourceLanguage.value;
+                const target = targetLanguage.value;
+                
+                const prompt = `Translate the following text from ${getLanguageName(source)} to ${getLanguageName(target)}. Keep the formatting and structure as close as possible to the original. Return only the translated text without any explanations:
+
+${textToTranslate}`;
+                
+                // إرسال طلب الترجمة إلى Google Gemini API
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{ text: prompt }]
+                        }]
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`خطأ في API: ${errorData.error?.message || 'خطأ غير معروف'}`);
+                }
+                
+                const data = await response.json();
+                
+                // تحديث شريط التقدم
+                progressBar.style.width = '100%';
+                
+                // استخراج النص المترجم من الرد
+                if (data.candidates && data.candidates[0] && data.candidates[0].content &&
+                    data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
+                    translatedText = data.candidates[0].content.parts[0].text;
+                } else {
+                    throw new Error('تنسيق الرد غير متوقع من API');
+                }
+                
+                // إخفاء شريط التقدم بعد لحظة
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    progressBar.style.width = '0%';
+                }, 1000);
+                
+            } catch (error) {
+                console.error('خطأ في ترجمة النص:', error);
+                showError(`فشلت الترجمة: ${error.message}`);
+                throw error;
+            }
+        }
+        
+        /**
+         * الحصول على اسم اللغة الكامل من رمزها
+         */
+        function getLanguageName(code) {
+            const languages = {
+                'en': 'English',
+                'ar': 'Arabic',
+                'fr': 'French',
+                'es': 'Spanish',
+                'de': 'German',
+                'it': 'Italian',
+                'ru': 'Russian',
+                'zh': 'Chinese',
+                'ja': 'Japanese',
+                'ko': 'Korean',
+                'pt': 'Portuguese',
+                'tr': 'Turkish',
+                'nl': 'Dutch',
+                'sv': 'Swedish',
+                'hi': 'Hindi'
+            };
+            return languages[code] || code;
+        }
+        
+        /**
+         * تحميل النص المترجم كملف
+         */
+        function downloadTranslatedText() {
+            if (!translatedText) return;
+            
+            let fileType = '';
+            let mimeType = '';
+            
+            // تعيين التنسيق باستخدام المُحدد (يمكن إضافة اختيار التنسيق لاحقًا)
+            fileType = 'txt';
+            mimeType = 'text/plain';
+            
+            const blob = new Blob([translatedText], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            a.href = url;
+            a.download = `${fileName}_translated.${fileType}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        /**
+         * عرض رسالة خطأ
+         */
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            progressContainer.style.display = 'none';
+            progressBar.style.width = '0%';
+        }
+    </script>
+</body>
+</html>
